@@ -1,6 +1,3 @@
-# Get RegionalAndLanguageSettingsAccount for current or last logged-in user
-Write-Output "Checking Regional and Language Settings Account..."
-
 function Get-RegionalAccount {
     # Try current user first
     $currentUserKey = "Registry::HKEY_CURRENT_USER\Software\Microsoft\Office\16.0\Common\LanguageResources\LocalCache"
@@ -25,7 +22,7 @@ function Get-RegionalAccount {
 $result = Get-RegionalAccount
 
 if ($result) {
-    Write-Output "RegionalAndLanguageSettingsAccount found: $result"
+    Write-Output "$result"
 } else {
-    Write-Output "No RegionalAndLanguageSettingsAccount found in registry."
+    Write-Output "NONE"
 }
