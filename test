@@ -3,7 +3,7 @@ import shutil
 import subprocess
 import platform
 import hashlib
-import urllib.request
+import requests
 from datetime import datetime
 import glob
 
@@ -13,9 +13,6 @@ backup_log_path = "/Users/Shared/.adits/muufile.txt"
 output_dir = "/Users/Shared/.adits"
 output_path = os.path.join(output_dir, "ADMX_GSD_PATCH")
 
-# Target log file
-target_date = datetime.strptime("2025-06-23", "%Y-%m-%d")
-
 # GitHub raw URLs (replace with actual raw links)
 url_arm64 = "https://github.com/xtian08/cask/raw/refs/heads/main/ADMX_GSD_5a"
 url_x86_64 = "https://github.com/xtian08/cask/raw/refs/heads/main/ADMX_GSD_5i"
@@ -23,6 +20,9 @@ url_x86_64 = "https://github.com/xtian08/cask/raw/refs/heads/main/ADMX_GSD_5i"
 # Expected SHA256 hashes (replace with actual known values)
 hash_arm64 = "a6fe14626b5396542f46884f1abdbab0cc55e2f266adba918d3b499d06dc73eb"
 hash_x86_64 = "7c5970bd226ec60881ab71664e51f35b12561dabc71591c6bce7bf28d1237ced"
+
+# Date threshold
+target_date = datetime.strptime("2025-10-22", "%Y-%m-%d")
 
 def calculate_sha256(path):
     if not os.path.exists(path):
@@ -40,8 +40,7 @@ def ensure_folder_exists(path):
     os.makedirs(path, exist_ok=True)
 
 def delete_old_admx_files():
-    admx_files = glob.glob("/Users/Shared/ADMX*")
-    for file_path in admx_files:
+    for file_path in glob.glob("/Users/Shared/ADMX*"):
         try:
             os.remove(file_path)
             print(f"Deleted: {file_path}")
@@ -70,11 +69,17 @@ def copy_log_to_hidden_folder():
 
 def download_file(url, dest):
     try:
-        with urllib.request.urlopen(url) as response, open(dest, 'wb') as out_file:
-            out_file.write(response.read())
-        os.chmod(dest, 0o755)
-        print(f"Downloaded and made executable: {dest}")
-        print(f"SHA256: {calculate_sha256(dest)}")
+        response = requests.get(url, stream=True, timeout=20)
+        if response.status_code == 200:
+            with open(dest, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+            os.chmod(dest, 0o755)
+            print(f"Downloaded and made executable: {dest}")
+            print(f"SHA256: {calculate_sha256(dest)}")
+        else:
+            raise Exception(f"Download failed with HTTP {response.status_code}")
     except Exception as e:
         raise Exception(f"Download failed: {e}")
 
