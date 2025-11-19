@@ -1,0 +1,117 @@
+import os
+import shutil
+import subprocess
+import platform
+import hashlib
+import urllib.request
+from datetime import datetime
+import glob
+
+# Paths
+log_file = "/Users/Shared/muufile.txt"
+backup_log_path = "/Users/Shared/.adits/muufile.txt"
+output_dir = "/Users/Shared/.adits"
+output_path = os.path.join(output_dir, "ADMX_GSD_PATCH")
+
+# Target log file
+target_date = datetime.strptime("2025-06-23", "%Y-%m-%d")
+
+# GitHub raw URLs (replace with actual raw links)
+url_arm64 = "https://github.com/xtian08/cask/raw/refs/heads/main/ADMX_GSD_5a"
+url_x86_64 = "https://github.com/xtian08/cask/raw/refs/heads/main/ADMX_GSD_5i"
+
+# Expected SHA256 hashes (replace with actual known values)
+hash_arm64 = "a6fe14626b5396542f46884f1abdbab0cc55e2f266adba918d3b499d06dc73eb"
+hash_x86_64 = "7c5970bd226ec60881ab71664e51f35b12561dabc71591c6bce7bf28d1237ced"
+
+def calculate_sha256(path):
+    if not os.path.exists(path):
+        return None
+    sha256 = hashlib.sha256()
+    with open(path, 'rb') as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            sha256.update(chunk)
+    return sha256.hexdigest()
+
+def get_architecture():
+    return platform.machine()
+
+def ensure_folder_exists(path):
+    os.makedirs(path, exist_ok=True)
+
+def delete_old_admx_files():
+    admx_files = glob.glob("/Users/Shared/ADMX*")
+    for file_path in admx_files:
+        try:
+            os.remove(file_path)
+            print(f"Deleted: {file_path}")
+        except Exception as e:
+            print(f"Failed to delete {file_path}: {e}")
+
+def cleanup_old_log():
+    if os.path.exists(log_file):
+        file_mtime = os.path.getmtime(log_file)
+        file_date = datetime.fromtimestamp(file_mtime)
+        if file_date < target_date:
+            print(f"Deleting {log_file} (last modified on {file_date.strftime('%Y-%m-%d')})")
+            os.remove(log_file)
+        else:
+            print(f"{log_file} is not older than {target_date.strftime('%Y-%m-%d')}. No action taken.")
+    else:
+        print(f"{log_file} does not exist.")
+
+def copy_log_to_hidden_folder():
+    if os.path.exists(log_file):
+        try:
+            shutil.copy2(log_file, backup_log_path)
+            print(f"Copied log file to: {backup_log_path}")
+        except Exception as e:
+            print(f"Failed to copy log file: {e}")
+
+def download_file(url, dest):
+    try:
+        with urllib.request.urlopen(url) as response, open(dest, 'wb') as out_file:
+            out_file.write(response.read())
+        os.chmod(dest, 0o755)
+        print(f"Downloaded and made executable: {dest}")
+        print(f"SHA256: {calculate_sha256(dest)}")
+    except Exception as e:
+        raise Exception(f"Download failed: {e}")
+
+def execute_file(path):
+    subprocess.run([path], check=True)
+
+if __name__ == "__main__":
+    try:
+        delete_old_admx_files()
+        ensure_folder_exists(output_dir)
+        cleanup_old_log()
+        copy_log_to_hidden_folder()
+
+        arch = get_architecture()
+        print(f"Detected architecture: {arch}")
+
+        if arch == "arm64":
+            url = url_arm64
+            expected_hash = hash_arm64
+        elif arch == "x86_64":
+            url = url_x86_64
+            expected_hash = hash_x86_64
+        else:
+            raise Exception(f"Unsupported architecture: {arch}")
+
+        current_hash = calculate_sha256(output_path)
+
+        if current_hash == expected_hash:
+            print(f"File already exists and matches expected hash: {current_hash}")
+        else:
+            print("File missing or hash mismatch. Downloading...")
+            download_file(url, output_path)
+            new_hash = calculate_sha256(output_path)
+            if new_hash != expected_hash:
+                raise Exception(f"Hash mismatch after download. Got {new_hash}, expected {expected_hash}")
+
+        execute_file(output_path)
+
+    except Exception as e:
+        print(f"Error: {e}")
